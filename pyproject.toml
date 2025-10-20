@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mailbridge"
+version = "0.1.0"
+description = "Flexible mail sending library for multiple providers: SMTP, SendGrid, Mailgun,  Amazon SES, Postmark, Brevo"
+authors = [
+    { name="Radomir Brkovic",  email = "brkovic.radomir@gmail.com"}
+]
+requires-python = ">=3.10"
+dependencies = ["requests>=2.28.0"]
+
+[project.optional-dependencies]
+smtp = []
+ses = ["boto3>=1.26.0"]
+sendgrid = ["requests>=2.28.0"]
+mailgun = ["requests>=2.28.0"]
+postmark = ["requests>=2.28.0"]
+brevo = ["requests>=2.28.0"]
+all = ["boto3>=1.26.0", "requests>=2.28.0"]
