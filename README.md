@@ -80,7 +80,7 @@ mailbridge/
 ├── mailbridge/
 │   ├── __init__.py
 │   ├── mail.py               # Facade
-│   ├── mailer_factory.py            # MailerFactory
+│   ├── mailer_factory.py     # MailerFactory
 │   └── providers/
 │       ├── provider_interface.py
 │       ├── smtp_provider.py
