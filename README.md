@@ -47,7 +47,8 @@ MAIL_HOST=smtp.mailserver.com
 MAIL_PORT=587
 MAIL_USERNAME=your_username
 MAIL_PASSWORD=your_password
-MAIL_ENCRYPTION=True
+MAIL_TLS_ENCRYPTION=True
+MAIL_SSL_ENCRYPTION=False
 
 # Example for SendGrid
 MAIL_MAILER=sendgrid
