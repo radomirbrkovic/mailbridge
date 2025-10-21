@@ -25,3 +25,20 @@ def test_mail_send_success(mock_get_provider):
         body="<h1>Hello!</h1>",
         from_email="noreply@example.com",
     )
+    
+@patch("mailbridge.mailer_factory.MailerFactory.get_provider")
+def test_mail_send_failure(mock_get_provider):
+    """Test that Mail.send() returns False if provider.send() raises an error."""
+    mock_provider = MagicMock()
+    mock_provider.send.side_effect = Exception("Something went wrong")
+    mock_get_provider.return_value = mock_provider
+
+    result = Mail.send(
+        to="user@example.com",
+        subject="Fail Test",
+        body="Error expected",
+        from_email="noreply@example.com",
+    )
+
+    assert result is False
+    mock_provider.send.assert_called_once()
