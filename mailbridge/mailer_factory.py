@@ -5,6 +5,9 @@ from .providers.mailgun_provider import MailgunProvider
 from .providers.ses_provider import SESProvider
 from .providers.postmark_provider import PostmarkProvider
 from .providers.brevo_provider import BrevoProvider
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class MailerFactory:
     @staticmethod
@@ -17,7 +20,8 @@ class MailerFactory:
                 port=int(os.getenv("MAIL_PORT", 587)),
                 username=os.getenv("MAIL_USERNAME"),
                 password=os.getenv("MAIL_PASSWORD"),
-                use_tls=os.getenv("MAIL_ENCRYPTION", "True") == "True",
+                use_tls=os.getenv("MAIL_TLS_ENCRYPTION", "True") == "True",
+                use_ssl=os.getenv("MAIL_SSL_ENCRYPTION", "False") == "True",
             )
         elif provider_name == "sendgrid":
             return SendGridProvider(
