@@ -5,18 +5,36 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mailbridge"
 version = "0.1.0"
-description = "Flexible mail sending library for multiple providers: SMTP, SendGrid, Mailgun,  Amazon SES, Postmark, Brevo"
+description = "Flexible mail delivery library supporting multiple providers (SMTP, SendGrid, Mailgun, SES, Postmark, Brevo)"
+readme = { file = "README.md", content-type = "text/markdown" }
 authors = [
-    { name="Radomir Brkovic",  email = "brkovic.radomir@gmail.com"}
+    { name = "Radomir Brković", email = "brkovic.radomir@gmail.com" },
 ]
-requires-python = ">=3.10"
-dependencies = ["requests>=2.28.0"]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["email", "smtp", "mailgun", "sendgrid", "aws", "ses", "postmark", "brevo"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "requests>=2.26.0",
+    "boto3>=1.20.0",
+    "python-dotenv>=1.0.0"
+]
 
 [project.optional-dependencies]
 smtp = []
-ses = ["boto3>=1.26.0"]
-sendgrid = ["requests>=2.28.0"]
-mailgun = ["requests>=2.28.0"]
-postmark = ["requests>=2.28.0"]
-brevo = ["requests>=2.28.0"]
-all = ["boto3>=1.26.0", "requests>=2.28.0"]
+sendgrid = ["requests"]
+mailgun = ["requests"]
+ses = ["boto3"]
+postmark = ["requests"]
+brevo = ["requests"]
+all = ["requests", "boto3"]
+
+[project.urls]
+"Homepage" = "https://github.com/radomirbrkovic/mailbridge"
+"Bug Tracker" = "https://github.com/radomirbrkovic/mailbridge/issues"
