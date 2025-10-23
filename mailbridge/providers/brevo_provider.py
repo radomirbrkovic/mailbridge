@@ -17,6 +17,7 @@ class BrevoProvider(ProviderInterface):
         headers = {
             "api-key": self.api_key,
             "Content-Type": "application/json",
+            "Accept": "application/json"
         }
 
         resp = requests.post(self.endpoint, json=data, headers=headers)
