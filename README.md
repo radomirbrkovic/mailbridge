@@ -60,7 +60,7 @@ MAIL_ENDPOINT=https://api.sendgrid.com/v3/mail/send
 ### Sending an email:
 
 ```
-from mailbridge import Mail
+from mailbridge.mail import Mail
 
 Mail.send(
     to="user@example.com",
