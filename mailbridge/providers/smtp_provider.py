@@ -7,7 +7,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 from pathlib import Path
 from typing import Dict, Any
-from .base_email_provider import BaseEmailProvider
+from mailbridge.providers.base_email_provider import BaseEmailProvider
 from mailbridge.dto.email_message_dto import EmailMessageDto
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
