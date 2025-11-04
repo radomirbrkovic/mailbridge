@@ -10,7 +10,7 @@ class EmailMessageDto:
     from_email: Optional[str] = None
     cc: Optional[Union[str, List[str]]] = None
     bcc: Optional[Union[str, List[str]]] = None
-    replay_to: Optional[str] = None
+    reply_to: Optional[str] = None
     attachments: Optional[List[Union[Path, tuple]]] = None
     html: bool = True
     headers: Optional[Dict[str, str]] = None
