@@ -1,0 +1,25 @@
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, List, Dict, Union
+
+@dataclass
+class EmailMessageDto:
+    to: Union[str, List[str]]
+    subject: str
+    body: str
+    from_email: Optional[str] = None
+    cc: Optional[Union[str, List[str]]] = None
+    bcc: Optional[Union[str, List[str]]] = None
+    replay_to: Optional[str] = None
+    attachments: Optional[List[Union[Path, tuple]]] = None
+    html: bool = True
+    headers: Optional[Dict[str, str]] = None
+
+    def __post_init__(self):
+        """Normalize email addresses to lists."""
+        if isinstance(self.to, str):
+            self.to = [self.to]
+        if isinstance(self.cc, str):
+            self.cc = [self.cc]
+        if isinstance(self.bcc, str):
+            self.bcc = [self.bcc]
