@@ -1,6 +1,6 @@
 import smtplib
 from email.mime.text import MIMEText
-from .provider_interface import ProviderInterface
+from .base_email_provider import ProviderInterface
 
 class SMTPProvider(ProviderInterface):
     def __init__(self, host: str, port: int, username: str, password: str, use_tls: bool = True, use_ssl: bool = False):

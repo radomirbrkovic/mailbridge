@@ -1,5 +1,5 @@
 import requests
-from .provider_interface import ProviderInterface
+from .base_email_provider import ProviderInterface
 
 class PostmarkProvider(ProviderInterface):
     def __init__(self, server_token, endpoint):

@@ -1,5 +1,5 @@
 import boto3
-from .provider_interface import ProviderInterface
+from .base_email_provider import ProviderInterface
 
 class SESProvider(ProviderInterface):
     def __init__(self, aws_access_key_id, aws_secret_access_key, region_name):

@@ -1,5 +1,5 @@
 import requests
-from .provider_interface import ProviderInterface
+from .base_email_provider import ProviderInterface
 
 class BrevoProvider(ProviderInterface):
     def __init__(self, api_key, endpoint):
