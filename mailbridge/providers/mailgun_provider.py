@@ -16,7 +16,7 @@ class MailgunProvider(BaseEmailProvider):
             auth = ('api', self.config['api_key'])
 
             response = requests.post(
-                f"{self.config.get('endpoint')}/messages",
+                f"{self.endpoint}/messages",
                 auth=auth,
                 data=data,
                 files=files,
@@ -53,6 +53,8 @@ class MailgunProvider(BaseEmailProvider):
             raise ConfigurationError(
                 f"Missing required Mailgun configuration: {', '.join(missing)}"
             )
+
+        self.endpoint = self.config['endpoint']
 
     def _build_from_data(self, message: EmailMessageDto) -> Dict[str, Any]:
         data = {
