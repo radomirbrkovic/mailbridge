@@ -58,3 +58,28 @@ class PostmarkProvider(BaseEmailProvider):
             payload['TrackLinks'] = self.config['track_links']
 
         return payload
+
+    def _build_attachments(self, attachments: List) -> List[Dict[str, str]]:
+        result = []
+
+        for attachment in attachments:
+            if isinstance(attachment, Path):
+                with open(attachment, 'rb') as f:
+                    content = base64.b64encode(f.read()).decode()
+                result.append({
+                    'Name': attachment.name,
+                    'Content': content,
+                    'ContentType': 'application/octet-stream'
+                })
+            elif isinstance(attachment, tuple):
+                filename, content, mimetype = attachment
+                if isinstance(content, str):
+                    content = content.encode()
+                encoded = base64.b64encode(content).decode()
+                result.append({
+                    'Name': filename,
+                    'Content': encoded,
+                    'ContentType': mimetype
+                })
+
+        return result
