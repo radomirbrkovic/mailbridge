@@ -89,3 +89,43 @@ class SESProvider(BaseEmailProvider):
             'message_id': response['MessageId'],
             'provider': 'ses'
         }
+
+    def _send_raw_email(self, message: EmailMessageDto) -> Dict[str, Any]:
+        """Send raw MIME email with attachments using send_raw_email()."""
+        msg = MIMEMultipart()
+        msg['Subject'] = message.subject
+        msg['From'] = message.from_email or self.config.get('from_email')
+        msg['To'] = ', '.join(message.to)
+
+        if message.cc:
+            msg['Cc'] = ', '.join(message.cc)
+        if message.reply_to:
+            msg['Reply-To'] = message.reply_to
+
+        if message.headers:
+            for key, value in message.headers.items():
+                msg[key] = value
+
+        if message.html:
+            part = MIMEText(message.body, 'html', 'utf-8')
+        else:
+            part = MIMEText(message.body, 'plain', 'utf-8')
+        msg.attach(part)
+
+        if message.attachments:
+            for attachment in message.attachments:
+                self._attach_file(msg, attachment)
+
+        destinations = message.to + (message.cc or []) + (message.bcc or [])
+
+        response = self.client.send_raw_email(
+            Source=message.from_email or self.config.get('from_email'),
+            Destinations=destinations,
+            RawMessage={'Data': msg.as_string()}
+        )
+
+        return {
+            'success': True,
+            'message_id': response['MessageId'],
+            'provider': 'ses'
+        }
