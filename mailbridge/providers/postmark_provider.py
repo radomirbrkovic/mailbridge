@@ -1,25 +1,60 @@
+import base64
+from pathlib import Path
+from typing import Dict, Any, List
 import requests
-from .base_email_provider import ProviderInterface
+from mailbridge.providers.base_email_provider import BaseEmailProvider
+from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class PostmarkProvider(ProviderInterface):
-    def __init__(self, server_token, endpoint):
-        self.server_token = server_token
-        self.endpoint = endpoint
+class PostmarkProvider(BaseEmailProvider):
 
-    def send(self, to, subject, body, from_email=None):
-        data = {
-            "From": from_email,
-            "To": to,
-            "Subject": subject,
-            "HtmlBody": body,
+    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+        pass
+
+    def _validate_config(self) -> None:
+        """Validate Postmark configuration."""
+        if 'server_token' not in self.config:
+            raise ConfigurationError(
+                "Missing required Postmark configuration: server_token"
+            )
+
+        self.endpoint = self.config.get(
+            'endpoint',
+            'https://api.postmarkapp.com/email'
+        )
+
+    def _build_payload(self, message: EmailMessageDto) -> Dict[str, Any]:
+        payload = {
+            'From': message.from_email or self.config.get('from_email'),
+            'To': ', '.join(message.to),
+            'Subject': message.subject,
         }
 
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Postmark-Server-Token": self.server_token,
-        }
+        if message.html:
+            payload['HtmlBody'] = message.body
+        else:
+            payload['TextBody'] = message.body
 
-        resp = requests.post(self.endpoint, json=data, headers=headers)
-        resp.raise_for_status()
-        return resp.status_code == 200
+        if message.cc:
+            payload['Cc'] = ', '.join(message.cc)
+        if message.bcc:
+            payload['Bcc'] = ', '.join(message.bcc)
+
+        if message.reply_to:
+            payload['ReplyTo'] = message.reply_to
+
+        if message.headers:
+            payload['Headers'] = [
+                {'Name': key, 'Value': value}
+                for key, value in message.headers.items()
+            ]
+
+        if message.attachments:
+            payload['Attachments'] = self._build_attachments(message.attachments)
+
+        if self.config.get('track_opens'):
+            payload['TrackOpens'] = True
+        if self.config.get('track_links'):
+            payload['TrackLinks'] = self.config['track_links']
+
+        return payload
