@@ -1,25 +1,58 @@
+import base64
+from pathlib import Path
+from typing import Dict, Any, List
 import requests
-from .base_email_provider import ProviderInterface
+from mailbridge.providers.base_email_provider import BaseEmailProvider
+from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class BrevoProvider(ProviderInterface):
-    def __init__(self, api_key, endpoint):
-        self.api_key = api_key
-        self.endpoint = endpoint
+class BrevoProvider(BaseEmailProvider):
+    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+        pass
 
-    def send(self, to, subject, body, from_email=None):
-        data = {
-            "sender": {"email": from_email},
-            "to": [{"email": to}],
-            "subject": subject,
-            "htmlContent": body,
+    def _validate_config(self) -> None:
+        """Validate Brevo configuration."""
+        if 'api_key' not in self.config:
+            raise ConfigurationError(
+                "Missing required Brevo configuration: api_key"
+            )
+
+        self.endpoint = self.config.get(
+            'endpoint',
+            'https://api.brevo.com/v3/smtp/email'
+        )
+
+    def _build_payload(self, message: EmailMessageDto) -> Dict[str, Any]:
+
+        payload = {
+            'sender': {
+                'email': message.from_email or self.config.get('from_email')
+            },
+            'to': [{'email': email} for email in message.to],
+            'subject': message.subject,
         }
 
-        headers = {
-            "api-key": self.api_key,
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
+        if message.html:
+            payload['htmlContent'] = message.body
+        else:
+            payload['textContent'] = message.body
 
-        resp = requests.post(self.endpoint, json=data, headers=headers)
-        resp.raise_for_status()
-        return resp.status_code in (200, 201, 202)
+        if message.cc:
+            payload['cc'] = [{'email': email} for email in message.cc]
+
+        if message.bcc:
+            payload['bcc'] = [{'email': email} for email in message.bcc]
+
+        if message.reply_to:
+            payload['replyTo'] = {'email': message.reply_to}
+
+        if message.headers:
+            payload['headers'] = message.headers
+
+        if message.attachments:
+            payload['attachment'] = self._build_attachments(message.attachments)
+
+        if self.config.get('tags'):
+            payload['tags'] = self.config['tags']
+
+        return payload
