@@ -9,7 +9,45 @@ from mailbridge.exceptions import ConfigurationError, EmailSendError
 class PostmarkProvider(BaseEmailProvider):
 
     def send(self, message: EmailMessageDto) -> Dict[str, Any]:
-        pass
+        try:
+            payload = self._build_payload(message)
+            headers = {
+                'X-Postmark-Server-Token': self.config['server_token'],
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+
+            response = requests.post(
+                self.endpoint,
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+
+            if response.status_code != 200:
+                error_data = response.json()
+                raise EmailSendError(
+                    f"Postmark API error: {error_data.get('ErrorCode')} - "
+                    f"{error_data.get('Message')}",
+                    provider='postmark'
+                )
+
+            result = response.json()
+
+            return {
+                'success': True,
+                'message_id': result.get('MessageID'),
+                'submitted_at': result.get('SubmittedAt'),
+                'to': result.get('To'),
+                'provider': 'postmark'
+            }
+
+        except requests.RequestException as e:
+            raise EmailSendError(
+                f"Failed to send email via Postmark: {str(e)}",
+                provider='postmark',
+                original_error=e
+            )
 
     def _validate_config(self) -> None:
         """Validate Postmark configuration."""
