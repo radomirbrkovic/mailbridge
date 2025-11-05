@@ -1,23 +1,46 @@
+import base64
+from pathlib import Path
+from typing import Dict, Any, List
 import requests
-from .base_email_provider import ProviderInterface
+from mailbridge.providers.base_email_provider import BaseEmailProvider
+from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class MailgunProvider(ProviderInterface):
-    def __init__(self, api_key, endpoint):
-        self.api_key = api_key
-        self.endpoint = endpoint
+class MailgunProvider(BaseEmailProvider):
 
-    def send(self, to, subject, body, from_email=None):
+    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+        pass
+
+    def _validate_config(self) -> None:
+        required = ['api_key', 'endpoint']
+        missing = [key for key in required if key not in self.config]
+        if missing:
+            raise ConfigurationError(
+                f"Missing required Mailgun configuration: {', '.join(missing)}"
+            )
+
+    def _build_from_data(self, message: EmailMessageDto) -> Dict[str, Any]:
         data = {
-            "from": from_email,
-            "to": [to],
-            "subject": subject,
-            "html": body,
+            'from': message.from_email or self.config.get('from_email'),
+            'to': message.to,
+            'subject': message.subject,
         }
 
-        resp = requests.post(
-            self.endpoint,
-            auth=("api", self.api_key),
-            data=data,
-        )
-        resp.raise_for_status()
-        return resp.status_code == 200
+        if message.html:
+            data['html'] = message.body
+        else:
+            data['text'] = message.body
+
+        if message.cc:
+            data['cc'] = message.cc
+        if message.bcc:
+            data['bcc'] = message.bcc
+
+        if message.reply_to:
+            data['h:Reply-To'] = message.reply_to
+
+        if message.headers:
+            for key, value in message.headers.items():
+                data[f'h:{key}'] = value
+
+        return data
