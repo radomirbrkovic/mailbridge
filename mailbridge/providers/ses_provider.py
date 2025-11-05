@@ -18,7 +18,26 @@ except ImportError:
 class SESProvider(BaseEmailProvider):
 
     def send(self, message: EmailMessageDto) -> Dict[str, Any]:
-        pass
+        try:
+            if message.attachments:
+                return self._send_raw_email(message)
+            else:
+                return self._send_simple_email(message)
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            raise EmailSendError(
+                f"SES error ({error_code}): {error_message}",
+                provider='ses',
+                original_error=e
+            )
+        except (BotoCoreError, Exception) as e:
+            raise EmailSendError(
+                f"Failed to send email via SES: {str(e)}",
+                provider='ses',
+                original_error=e
+            )
 
     def _validate_config(self) -> None:
         """Validate SES configuration."""
