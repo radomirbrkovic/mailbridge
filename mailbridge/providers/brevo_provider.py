@@ -8,7 +8,44 @@ from mailbridge.exceptions import ConfigurationError, EmailSendError
 
 class BrevoProvider(BaseEmailProvider):
     def send(self, message: EmailMessageDto) -> Dict[str, Any]:
-        pass
+        try:
+            payload = self._build_payload(message)
+
+            headers = {
+                'api-key': self.config['api_key'],
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+
+            response = requests.post(
+                self.endpoint,
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+
+            if response.status_code not in (200, 201):
+                error_data = response.json()
+                raise EmailSendError(
+                    f"Brevo API error: {error_data.get('code')} - "
+                    f"{error_data.get('message')}",
+                    provider='brevo'
+                )
+
+            result = response.json()
+
+            return {
+                'success': True,
+                'message_id': result.get('messageId'),
+                'provider': 'brevo'
+            }
+
+        except requests.RequestException as e:
+            raise EmailSendError(
+                f"Failed to send email via Brevo: {str(e)}",
+                provider='brevo',
+                original_error=e
+            )
 
     def _validate_config(self) -> None:
         """Validate Brevo configuration."""
