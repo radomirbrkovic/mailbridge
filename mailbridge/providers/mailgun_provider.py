@@ -1,4 +1,3 @@
-import base64
 from pathlib import Path
 from typing import Dict, Any, List
 import requests
@@ -9,7 +8,43 @@ from mailbridge.exceptions import ConfigurationError, EmailSendError
 class MailgunProvider(BaseEmailProvider):
 
     def send(self, message: EmailMessageDto) -> Dict[str, Any]:
-        pass
+        try:
+            data = self._build_from_data(message)
+            files = self._build_files(message.attachments) if message.attachments else None
+
+            # Basic auth sa api key
+            auth = ('api', self.config['api_key'])
+
+            response = requests.post(
+                f"{self.config.get('endpoint')}/messages",
+                auth=auth,
+                data=data,
+                files=files,
+                timeout=30
+            )
+
+            if response.status_code != 200:
+                raise EmailSendError(
+                    f"Mailgun API error: {response.status_code} - {response.text}",
+                    provider='mailgun'
+                )
+
+            result = response.json()
+
+            return {
+                'success': True,
+                'message_id': result.get('id'),
+                'message': result.get('message'),
+                'provider': 'mailgun'
+            }
+
+        except requests.RequestException as e:
+            raise EmailSendError(
+                f"Failed to send email via Mailgun: {str(e)}",
+                provider='mailgun',
+                original_error=e
+            )
+
 
     def _validate_config(self) -> None:
         required = ['api_key', 'endpoint']
