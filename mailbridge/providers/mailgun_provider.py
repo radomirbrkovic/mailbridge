@@ -44,3 +44,23 @@ class MailgunProvider(BaseEmailProvider):
                 data[f'h:{key}'] = value
 
         return data
+
+    def _build_files(self, attachments: List) -> List[tuple]:
+        files = []
+
+        for attachment in attachments:
+            if isinstance(attachment, Path):
+                files.append((
+                    'attachment',
+                    (attachment.name, open(attachment, 'rb'), 'application/octet-stream')
+                ))
+            elif isinstance(attachment, tuple):
+                filename, content, mimetype = attachment
+                if isinstance(content, str):
+                    content = content.encode()
+                files.append((
+                    'attachment',
+                    (filename, content, mimetype)
+                ))
+
+        return files
