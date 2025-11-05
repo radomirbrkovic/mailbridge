@@ -129,3 +129,28 @@ class SESProvider(BaseEmailProvider):
             'message_id': response['MessageId'],
             'provider': 'ses'
         }
+
+    def _attach_file(self, msg: MIMEMultipart, attachment) -> None:
+        if isinstance(attachment, Path):
+            with open(attachment, 'rb') as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header(
+                'Content-Disposition',
+                f'attachment; filename={attachment.name}'
+            )
+            msg.attach(part)
+        elif isinstance(attachment, tuple):
+            filename, content, mimetype = attachment
+            maintype, subtype = mimetype.split('/', 1)
+            part = MIMEBase(maintype, subtype)
+            if isinstance(content, str):
+                content = content.encode()
+            part.set_payload(content)
+            encoders.encode_base64(part)
+            part.add_header(
+                'Content-Disposition',
+                f'attachment; filename={filename}'
+            )
+            msg.attach(part)
