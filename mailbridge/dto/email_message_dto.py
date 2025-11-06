@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Union, Any
+
 
 @dataclass
 class EmailMessageDto:
@@ -14,6 +15,9 @@ class EmailMessageDto:
     attachments: Optional[List[Union[Path, tuple]]] = None
     html: bool = True
     headers: Optional[Dict[str, str]] = None
+    template_id: Optional[str] = None
+    template_data: Optional[Dict[str, Any]] = None
+
 
     def __post_init__(self):
         """Normalize email addresses to lists."""
@@ -23,3 +27,13 @@ class EmailMessageDto:
             self.cc = [self.cc]
         if isinstance(self.bcc, str):
             self.bcc = [self.bcc]
+
+        if not self.template_id and not self.subject:
+            raise ValueError("Either 'subject' or 'template_id' must be provided")
+
+        if not self.template_id and not self.body:
+            raise ValueError("Either 'body' or 'template_id' must be provided")
+
+    def is_template_email(self) -> bool:
+        """Check if this is a template-based email."""
+        return self.template_id is not None
