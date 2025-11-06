@@ -1,7 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
+from mailbridge.dto.bulk_email_dto import BulkEmailDTO
+from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
 from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.dto.email_response_dto import EmailResponseDTO
+from mailbridge.exceptions import EmailSendError
+
 
 class BaseEmailProvider(ABC):
     def __init__(self, **config):
@@ -14,9 +19,35 @@ class BaseEmailProvider(ABC):
         pass
 
     @abstractmethod
-    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+    def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         """Send an email through this provider."""
         pass
+
+    def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
+        responses = []
+
+        for message in bulk.messages:
+            try:
+                responses.append(self.send(message))
+            except EmailSendError as e:
+                responses.append(EmailResponseDTO(
+                    success=False,
+                    provider=self.__class__.__name__,
+                    error=str(e)
+                ))
+            except Exception as e:
+                responses.append(EmailResponseDTO(
+                    success=False,
+                    provider=self.__class__.__name__,
+                    error=f"Unexpected error: {str(e)}"
+                ))
+        return BulkEmailResponseDTO.from_responses(responses)
+
+    def support_templates(self) -> bool:
+        return False
+
+    def support_bulk_sending(self) -> bool:
+        return False
 
     def __enter__(self):
         """Context manager entry."""
