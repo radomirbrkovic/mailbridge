@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
 from mailbridge.dto.bulk_email_dto import BulkEmailDTO
 from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
@@ -59,4 +59,19 @@ class BaseEmailProvider(ABC):
 
     def close(self) -> None:
         """Close any open connections. Override if needed."""
+        pass
+
+class TemplateCapableProvider(BaseEmailProvider):
+    def support_templates(self) -> bool:
+        return True
+
+    @abstractmethod
+    def send_template(
+            self,
+            template_id: str,
+            to: List[str],
+            template_data: Dict[str, Any],
+            from_email: Optional[str] = None,
+            **kwargs
+    ) -> EmailResponseDTO:
         pass
