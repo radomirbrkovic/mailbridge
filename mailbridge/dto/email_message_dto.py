@@ -17,6 +17,7 @@ class EmailMessageDto:
     headers: Optional[Dict[str, str]] = None
     template_id: Optional[str] = None
     template_data: Optional[Dict[str, Any]] = None
+    tags: Optional[List[str]] = None
 
 
     def __post_init__(self):
