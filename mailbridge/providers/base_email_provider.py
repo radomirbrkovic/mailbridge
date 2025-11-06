@@ -75,3 +75,11 @@ class TemplateCapableProvider(BaseEmailProvider):
             **kwargs
     ) -> EmailResponseDTO:
         pass
+
+class BulkCapableProvider(BaseEmailProvider):
+    def support_bulk_sending(self) -> bool:
+        return True
+
+    @abstractmethod
+    def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
+        pass
