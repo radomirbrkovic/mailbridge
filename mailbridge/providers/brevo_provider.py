@@ -1,15 +1,15 @@
 import base64
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import requests
-from mailbridge.providers.base_email_provider import TemplateCapableProvider, BulkCapableProvider
+from mailbridge.providers.base_email_provider import BaseEmailProvider, BulkCapableProvider
 from mailbridge.dto.bulk_email_dto import BulkEmailDTO
 from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
 from mailbridge.dto.email_message_dto import EmailMessageDto
 from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class BrevoProvider(TemplateCapableProvider):
+class BrevoProvider(BaseEmailProvider):
     def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         try:
             payload = self._build_payload(message)
