@@ -37,23 +37,7 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
                       attachments=message.attachments
                   )
               payload = self._build_payload(message)
-              headers = {
-                  'Authorization': f'Bearer {self.config["api_key"]}',
-                  'Content-Type': 'application/json'
-              }
-
-              response = requests.post(
-                  self.endpoint,
-                  json=payload,
-                  headers=headers,
-                  timeout=30
-              )
-
-              if response.status_code not in (200, 202):
-                  raise EmailSendError(
-                      f"SendGrid API error: {response.status_code} - {response.text}",
-                      provider='sendgrid'
-                  )
+              response = self._send_request(payload)
 
               return EmailResponseDTO(
                   success=True,
@@ -71,12 +55,85 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
                 original_error=e
             )
 
-    def send_template(self, template_id: str, to: List[str], template_data: Dict[str, Any],
-                      from_email: Optional[str] = None, **kwargs) -> EmailResponseDTO:
-        pass
+    def send_template(
+            self,
+            template_id: str,
+            to: List[str],
+            template_data: Dict[str, Any],
+            from_email: Optional[str] = None,
+            **kwargs
+    ) -> EmailResponseDTO:
+        try:
+            payload = {
+                'personalizations': [{
+                    'to': [{'email': email} for email in to],
+                    'dynamic_template_data': template_data
+                }],
+                'from': {
+                    'email': from_email or self.config.get('from_email')
+                },
+                'template_id': template_id
+            }
+
+            # Add optional fields
+            if kwargs.get('cc'):
+                payload['personalizations'][0]['cc'] = [
+                    {'email': email} for email in kwargs['cc']
+                ]
+            if kwargs.get('bcc'):
+                payload['personalizations'][0]['bcc'] = [
+                    {'email': email} for email in kwargs['bcc']
+                ]
+            if kwargs.get('reply_to'):
+                payload['reply_to'] = {'email': kwargs['reply_to']}
+            if kwargs.get('headers'):
+                payload['headers'] = kwargs['headers']
+            if kwargs.get('attachments'):
+                payload['attachments'] = self._build_attachments(kwargs['attachments'])
+
+
+            response = self._send_request(payload)
+            return EmailResponseDTO(
+                success=True,
+                message_id=response.headers.get('X-Message-Id'),
+                provider='sendgrid',
+                metadata={
+                    'template_id': template_id,
+                    'status_code': response.status_code
+                }
+            )
+
+        except requests.RequestException as e:
+            raise EmailSendError(
+                f"Failed to send template email via SendGrid: {str(e)}",
+                provider='sendgrid',
+                original_error=e
+            )
 
     def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
         pass
+
+    def _send_request(self, payload: Dict[str, Any]):
+        headers = {
+            'Authorization': f'Bearer {self.config["api_key"]}',
+            'Content-Type': 'application/json'
+        }
+
+        response = requests.post(
+            self.endpoint,
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+
+        if response.status_code not in (200, 202):
+            raise EmailSendError(
+                f"SendGrid template error: {response.status_code} - {response.text}",
+                provider='sendgrid'
+            )
+
+        return requests
+
 
     def _build_payload(self, message: EmailMessageDto) -> Dict[str, Any]:
         """Build SendGrid API payload."""
