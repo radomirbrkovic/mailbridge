@@ -2,12 +2,15 @@ import base64
 from pathlib import Path
 from typing import Dict, Any, List
 import requests
-from mailbridge.providers.base_email_provider import BaseEmailProvider
+from mailbridge.providers.base_email_provider import TemplateCapableProvider, BulkCapableProvider
+from mailbridge.dto.bulk_email_dto import BulkEmailDTO
+from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
 from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class BrevoProvider(BaseEmailProvider):
-    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+class BrevoProvider(TemplateCapableProvider):
+    def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         try:
             payload = self._build_payload(message)
 
@@ -34,11 +37,14 @@ class BrevoProvider(BaseEmailProvider):
 
             result = response.json()
 
-            return {
-                'success': True,
-                'message_id': result.get('messageId'),
-                'provider': 'brevo'
-            }
+            return EmailResponseDTO(
+                success=True,
+                message_id=result.get('messageId'),
+                provider='brevo',
+                metadata={
+                    'status_code': response.status_code
+                }
+            )
 
         except requests.RequestException as e:
             raise EmailSendError(
@@ -69,10 +75,14 @@ class BrevoProvider(BaseEmailProvider):
             'subject': message.subject,
         }
 
-        if message.html:
-            payload['htmlContent'] = message.body
+        if message.is_template_email():
+            payload['templateId'] = message.template_id
+            payload['params'] = message.template_data or {}
         else:
-            payload['textContent'] = message.body
+            if message.html:
+                payload['htmlContent'] = message.body
+            else:
+                payload['textContent'] = message.body
 
         if message.cc:
             payload['cc'] = [{'email': email} for email in message.cc]
