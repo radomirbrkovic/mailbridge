@@ -1,12 +1,15 @@
 import base64
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import requests
-from mailbridge.providers.base_email_provider import BaseEmailProvider
+from mailbridge.providers.base_email_provider import TemplateCapableProvider, BulkCapableProvider
+from mailbridge.dto.bulk_email_dto import BulkEmailDTO
+from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
 from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class SendGridProvider(BaseEmailProvider):
+class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
     def _validate_config(self) -> None:
         """Validate SendGrid configuration."""
         if 'api_key' not in self.config:
@@ -17,35 +20,49 @@ class SendGridProvider(BaseEmailProvider):
             'https://api.sendgrid.com/v3/mail/send'
         )
 
-    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+    def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         """Send email via SendGrid API."""
         try:
-            payload = self._build_payload(message)
 
-            headers = {
-                'Authorization': f'Bearer {self.config["api_key"]}',
-                'Content-Type': 'application/json'
-            }
+              if message.is_template_email():
+                  return self.send_template(
+                      template_id=message.template_id,
+                      to=message.to,
+                      template_data=message.template_data or {},
+                      from_email=message.from_email,
+                      cc=message.cc,
+                      bcc=message.bcc,
+                      reply_to=message.reply_to,
+                      headers=message.headers,
+                      attachments=message.attachments
+                  )
+              payload = self._build_payload(message)
+              headers = {
+                  'Authorization': f'Bearer {self.config["api_key"]}',
+                  'Content-Type': 'application/json'
+              }
 
-            response = requests.post(
-                self.endpoint,
-                json=payload,
-                headers=headers,
-                timeout=30
-            )
+              response = requests.post(
+                  self.endpoint,
+                  json=payload,
+                  headers=headers,
+                  timeout=30
+              )
 
-            if response.status_code not in (200, 202):
-                raise EmailSendError(
-                    f"SendGrid API error: {response.status_code} - {response.text}",
-                    provider='sendgrid'
-                )
+              if response.status_code not in (200, 202):
+                  raise EmailSendError(
+                      f"SendGrid API error: {response.status_code} - {response.text}",
+                      provider='sendgrid'
+                  )
 
-            return {
-                'success': True,
-                'message_id': response.headers.get('X-Message-Id'),
-                'status_code': response.status_code,
-                'provider': 'sendgrid'
-            }
+              return EmailResponseDTO(
+                  success=True,
+                  message_id=response.headers.get('X-Message-Id'),
+                  provider='sendgrid',
+                  metadata={
+                      'status_code': response.status_code
+                  }
+              )
 
         except requests.RequestException as e:
             raise EmailSendError(
@@ -53,6 +70,13 @@ class SendGridProvider(BaseEmailProvider):
                 provider='sendgrid',
                 original_error=e
             )
+
+    def send_template(self, template_id: str, to: List[str], template_data: Dict[str, Any],
+                      from_email: Optional[str] = None, **kwargs) -> EmailResponseDTO:
+        pass
+
+    def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
+        pass
 
     def _build_payload(self, message: EmailMessageDto) -> Dict[str, Any]:
         """Build SendGrid API payload."""
