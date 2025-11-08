@@ -109,26 +109,63 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider, AsyncCapabl
                 original_error=e
             )
 
+    async def send_bulk_async(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
+        """Send bulk emails via SendGrid (async with concurrency)."""
+        try:
+            import asyncio
+
+            template_messages = [m for m in bulk.messages if m.is_template_email()]
+            regular_messages = [m for m in bulk.messages if not m.is_template_email()]
+
+            responses = []
+
+            # Send template messages (batch by template_id)
+            if template_messages:
+                grouped_by_template = {}
+                for msg in template_messages:
+                    if msg.template_id not in grouped_by_template:
+                        grouped_by_template[msg.template_id] = []
+                    grouped_by_template[msg.template_id].append(msg)
+
+                # Send all template batches concurrently
+                template_tasks = [
+                    self._send_bulk_template_async(template_id, messages)
+                    for template_id, messages in grouped_by_template.items()
+                ]
+                template_responses = await asyncio.gather(*template_tasks)
+                responses.extend(template_responses)
+
+            # Send regular messages concurrently
+            if regular_messages:
+                regular_tasks = [self.send_async(msg) for msg in regular_messages]
+                regular_responses = await asyncio.gather(*regular_tasks, return_exceptions=True)
+
+                for resp in regular_responses:
+                    if isinstance(resp, Exception):
+                        responses.append(EmailResponseDTO(
+                            success=False,
+                            provider='sendgrid',
+                            error=str(resp)
+                        ))
+                    else:
+                        responses.append(resp)
+
+            return BulkEmailResponseDTO.from_responses(responses)
+
+        except Exception as e:
+            raise EmailSendError(
+                f"Failed to send bulk emails via SendGrid (async): {str(e)}",
+                provider='sendgrid',
+                original_error=e
+            )
+
     def _send_bulk_template(
             self,
             template_id: str,
             messages: List[EmailMessageDto]
     ) -> EmailResponseDTO:
         """Send multiple template emails with same template_id."""
-        personalizations = []
-
-        for msg in messages:
-            personalization = {
-                'to': [{'email': email} for email in msg.to],
-                'dynamic_template_data': msg.template_data or {}
-            }
-
-            if msg.cc:
-                personalization['cc'] = [{'email': email} for email in msg.cc]
-            if msg.bcc:
-                personalization['bcc'] = [{'email': email} for email in msg.bcc]
-
-            personalizations.append(personalization)
+        personalizations = self._build_personalizations(messages)
 
         payload = {
             'personalizations': personalizations,
@@ -203,6 +240,52 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider, AsyncCapabl
 
         return response
 
+    async def _send_bulk_template_async(
+            self,
+            template_id: str,
+            messages: List[EmailMessageDto]
+    ) -> EmailResponseDTO:
+        """Send multiple template emails with same template_id (async)."""
+        personalizations = self._build_personalizations(messages)
+
+        payload = {
+            'personalizations': personalizations,
+            'from': {
+                'email': messages[0].from_email or self.config.get('from_email')
+            },
+            'template_id': template_id
+        }
+
+        response = await self._send_request_async(payload)
+
+        return EmailResponseDTO(
+            success=True,
+            message_id=response.headers.get('X-Message-Id'),
+            provider='sendgrid',
+            metadata={
+                'bulk_count': len(messages),
+                'template_id': template_id
+            }
+        )
+
+    def _build_personalizations(self, messages: List[EmailMessageDto]) -> List[Dict]:
+        """Build personalizations array for bulk template sending."""
+        personalizations = []
+
+        for msg in messages:
+            personalization = {
+                'to': [{'email': email} for email in msg.to],
+                'dynamic_template_data': msg.template_data or {}
+            }
+
+            if msg.cc:
+                personalization['cc'] = [{'email': email} for email in msg.cc]
+            if msg.bcc:
+                personalization['bcc'] = [{'email': email} for email in msg.bcc]
+
+            personalizations.append(personalization)
+
+        return personalizations
 
     def _build_payload(self, message: EmailMessageDto) -> Dict[str, Any]:
         """Build SendGrid API payload."""
@@ -278,3 +361,9 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider, AsyncCapabl
                 })
 
         return result
+
+    async def close_async(self) -> None:
+        """Close async HTTP client."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
