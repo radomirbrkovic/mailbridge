@@ -70,6 +70,7 @@ class MailgunProvider(TemplateCapableProvider):
         if message.is_template_email():
             data['template'] = message.template_id
             data['recipient-variables'] = json.dumps(message.template_data or {})
+            data['t:variables'] = json.dumps(message.template_data or {})
         else:
             if message.html:
                 data['html'] = message.body
