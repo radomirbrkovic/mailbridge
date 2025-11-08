@@ -6,8 +6,8 @@ from typing import Optional, List, Dict, Union, Any
 @dataclass
 class EmailMessageDto:
     to: Union[str, List[str]]
-    subject: str
-    body: str
+    subject: Optional[str] = None
+    body: Optional[str] = None
     from_email: Optional[str] = None
     cc: Optional[Union[str, List[str]]] = None
     bcc: Optional[Union[str, List[str]]] = None
