@@ -4,8 +4,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from mailbridge.providers.base_email_provider import BaseEmailProvider
+
+from mailbridge.providers.base_email_provider import TemplateCapableProvider, BulkCapableProvider
 from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.dto.email_response_dto import EmailResponseDTO
+from mailbridge.dto.bulk_email_dto import BulkEmailDTO
+from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
 try:
@@ -15,14 +19,20 @@ try:
 except ImportError:
     BOTO3_AVAILABLE = False
 
-class SESProvider(BaseEmailProvider):
+class SESProvider(TemplateCapableProvider, BulkCapableProvider):
 
-    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+    def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         try:
+            # Template email
+            if message.is_template_email():
+                return self._send_templated_email(message)
+
+            # Regular email with attachments
             if message.attachments:
                 return self._send_raw_email(message)
-            else:
-                return self._send_simple_email(message)
+
+            # Simple regular email
+            return self._send_simple_email(message)
 
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -39,8 +49,43 @@ class SESProvider(BaseEmailProvider):
                 original_error=e
             )
 
+    def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
+        try:
+            template_messages = [m for m in bulk.messages if m.is_template_email()]
+            regular_messages = [m for m in bulk.messages if not m.is_template_email()]
+
+            responses = []
+
+            # Send template messages in bulk (group by template_id)
+            if template_messages:
+                grouped_by_template = {}
+                for msg in template_messages:
+                    if msg.template_id not in grouped_by_template:
+                        grouped_by_template[msg.template_id] = []
+                    grouped_by_template[msg.template_id].append(msg)
+
+                for template_id, messages in grouped_by_template.items():
+                    # SES bulk limit is 50 destinations
+                    for i in range(0, len(messages), 50):
+                        batch = messages[i:i + 50]
+                        response = self._send_bulk_templated(template_id, batch)
+                        responses.append(response)
+
+            # Send regular messages individually (no bulk API for non-template)
+            for msg in regular_messages:
+                response = self.send(msg)
+                responses.append(response)
+
+            return BulkEmailResponseDTO.from_responses(responses)
+
+        except Exception as e:
+            raise EmailSendError(
+                f"Failed to send bulk emails via SES: {str(e)}",
+                provider='ses',
+                original_error=e
+            )
+
     def _validate_config(self) -> None:
-        """Validate SES configuration."""
         if not BOTO3_AVAILABLE:
             raise ConfigurationError(
                 "boto3 is required for SES provider. "
@@ -63,7 +108,97 @@ class SESProvider(BaseEmailProvider):
         except Exception as e:
             raise ConfigurationError(f"Failed to create SES client: {str(e)}")
 
-    def _send_simple_email(self, message: EmailMessageDto) -> Dict[str, Any]:
+    def _send_templated_email(self, message: EmailMessageDto) -> EmailResponseDTO:
+        destination = {
+            'ToAddresses': message.to
+        }
+
+        if message.cc:
+            destination['CcAddresses'] = message.cc
+        if message.bcc:
+            destination['BccAddresses'] = message.bcc
+
+        params = {
+            'Source': message.from_email or self.config.get('from_email'),
+            'Destination': destination,
+            'Template': message.template_id,
+            'TemplateData': self._serialize_template_data(message.template_data or {})
+        }
+
+        if message.reply_to:
+            params['ReplyToAddresses'] = [message.reply_to]
+
+        response = self.client.send_templated_email(**params)
+
+        return EmailResponseDTO(
+            success=True,
+            message_id=response['MessageId'],
+            provider='ses',
+            metadata={
+                'template_id': message.template_id,
+                'request_id': response['ResponseMetadata']['RequestId']
+            }
+        )
+
+    def _send_bulk_templated(
+            self,
+            template_id: str,
+            messages: List[EmailMessageDto]
+    ) -> EmailResponseDTO:
+        destinations = []
+
+        for msg in messages:
+            destination = {
+                'Destination': {
+                    'ToAddresses': msg.to
+                }
+            }
+
+            # Add template data for personalization
+            if msg.template_data:
+                destination['ReplacementTemplateData'] = self._serialize_template_data(
+                    msg.template_data
+                )
+
+            # Add CC/BCC if present
+            if msg.cc:
+                destination['Destination']['CcAddresses'] = msg.cc
+            if msg.bcc:
+                destination['Destination']['BccAddresses'] = msg.bcc
+
+            destinations.append(destination)
+
+        # Default template data (used if no ReplacementTemplateData)
+        default_template_data = messages[0].template_data or {}
+
+        params = {
+            'Source': messages[0].from_email or self.config.get('from_email'),
+            'Template': template_id,
+            'DefaultTemplateData': self._serialize_template_data(default_template_data),
+            'Destinations': destinations
+        }
+
+        response = self.client.send_bulk_templated_email(**params)
+
+        # SES returns status per destination
+        success_count = sum(
+            1 for status in response.get('Status', [])
+            if status.get('Status') == 'Success'
+        )
+
+        return EmailResponseDTO(
+            success=True,
+            message_id=response['ResponseMetadata']['RequestId'],
+            provider='ses',
+            metadata={
+                'template_id': template_id,
+                'bulk_count': len(messages),
+                'success_count': success_count,
+                'request_id': response['ResponseMetadata']['RequestId']
+            }
+        )
+
+    def _send_simple_email(self, message: EmailMessageDto) -> EmailResponseDTO:
         destination = {
             'ToAddresses': message.to
         }
@@ -103,14 +238,16 @@ class SESProvider(BaseEmailProvider):
 
         response = self.client.send_email(**params)
 
-        return {
-            'success': True,
-            'message_id': response['MessageId'],
-            'provider': 'ses'
-        }
+        return EmailResponseDTO(
+            success=True,
+            message_id=response['MessageId'],
+            provider='ses',
+            metadata={
+                'request_id': response['ResponseMetadata']['RequestId']
+            }
+        )
 
-    def _send_raw_email(self, message: EmailMessageDto) -> Dict[str, Any]:
-        """Send raw MIME email with attachments using send_raw_email()."""
+    def _send_raw_email(self, message: EmailMessageDto) -> EmailResponseDTO:
         msg = MIMEMultipart()
         msg['Subject'] = message.subject
         msg['From'] = message.from_email or self.config.get('from_email')
@@ -143,11 +280,14 @@ class SESProvider(BaseEmailProvider):
             RawMessage={'Data': msg.as_string()}
         )
 
-        return {
-            'success': True,
-            'message_id': response['MessageId'],
-            'provider': 'ses'
-        }
+        return EmailResponseDTO(
+            success=True,
+            message_id=response['MessageId'],
+            provider='ses',
+            metadata={
+                'request_id': response['ResponseMetadata']['RequestId']
+            }
+        )
 
     def _attach_file(self, msg: MIMEMultipart, attachment) -> None:
         if isinstance(attachment, Path):
@@ -173,3 +313,7 @@ class SESProvider(BaseEmailProvider):
                 f'attachment; filename={filename}'
             )
             msg.attach(part)
+
+    def _serialize_template_data(self, data: Dict[str, Any]) -> str:
+        import json
+        return json.dumps(data)
