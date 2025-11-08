@@ -2,13 +2,14 @@ import base64
 from pathlib import Path
 from typing import Dict, Any, List
 import requests
-from mailbridge.providers.base_email_provider import BaseEmailProvider
+from mailbridge.providers.base_email_provider import TemplateCapableProvider
+from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.dto.email_message_dto import EmailMessageDto
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class PostmarkProvider(BaseEmailProvider):
+class PostmarkProvider(TemplateCapableProvider):
 
-    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+    def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         try:
             payload = self._build_payload(message)
             headers = {
@@ -34,19 +35,24 @@ class PostmarkProvider(BaseEmailProvider):
 
             result = response.json()
 
-            return {
-                'success': True,
-                'message_id': result.get('MessageID'),
-                'submitted_at': result.get('SubmittedAt'),
-                'to': result.get('To'),
-                'provider': 'postmark'
-            }
+            return EmailResponseDTO(
+                success=True,
+                message_id=result.get('MessageID'),
+                provider='postmark',
+                metadata={
+                    'submitted_at': result.get('SubmittedAt'),
+                    'to': result.get('To'),
+                }
+            )
+
 
         except requests.RequestException as e:
             raise EmailSendError(
                 f"Failed to send email via Postmark: {str(e)}",
                 provider='postmark',
-                original_error=e
+
+
+                        original_error=e
             )
 
     def _validate_config(self) -> None:
@@ -68,10 +74,14 @@ class PostmarkProvider(BaseEmailProvider):
             'Subject': message.subject,
         }
 
-        if message.html:
-            payload['HtmlBody'] = message.body
+        if message.is_template_email():
+            payload['TemplateId'] = message.template_id
+            payload['TemplateModel'] = message.template_data
         else:
-            payload['TextBody'] = message.body
+            if message.html:
+                payload['HtmlBody'] = message.body
+            else:
+                payload['TextBody'] = message.body
 
         if message.cc:
             payload['Cc'] = ', '.join(message.cc)
