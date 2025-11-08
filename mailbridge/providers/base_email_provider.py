@@ -48,9 +48,6 @@ class BaseEmailProvider(ABC):
     def supports_bulk_sending(self) -> bool:
         return False
 
-    def supports_async_sending(self) -> bool:
-        return False
-
     def __enter__(self):
         """Context manager entry."""
         return self
@@ -73,15 +70,4 @@ class BulkCapableProvider(BaseEmailProvider):
 
     @abstractmethod
     def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
-        pass
-
-class AsyncCapableProvider(BaseEmailProvider):
-    def supports_async_sending(self) -> bool:
-        return True
-
-    @abstractmethod
-    def send_async(self, message: EmailMessageDto) -> EmailResponseDTO:
-        pass
-
-    async def send_bulk_async(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
         pass
