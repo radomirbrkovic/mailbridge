@@ -1,23 +1,131 @@
+import json
+from pathlib import Path
+from typing import Dict, Any, List
 import requests
-from .provider_interface import ProviderInterface
+from mailbridge.providers.base_email_provider import TemplateCapableProvider, BulkCapableProvider
+from mailbridge.dto.email_response_dto import EmailResponseDTO
+from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.dto.bulk_email_dto import BulkEmailDTO
+from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
+from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class MailgunProvider(ProviderInterface):
-    def __init__(self, api_key, endpoint):
-        self.api_key = api_key
-        self.endpoint = endpoint
+class MailgunProvider(TemplateCapableProvider, BulkCapableProvider):
 
-    def send(self, to, subject, body, from_email=None):
+    def send(self, message: EmailMessageDto) -> EmailResponseDTO:
+        try:
+            data = self._build_from_data(message)
+            files = self._build_files(message.attachments) if message.attachments else None
+
+            # Basic auth sa api key
+            auth = ('api', self.config['api_key'])
+
+            response = requests.post(
+                f"{self.endpoint}/messages",
+                auth=auth,
+                data=data,
+                files=files,
+                timeout=30
+            )
+
+            if response.status_code != 200:
+                raise EmailSendError(
+                    f"Mailgun API error: {response.status_code} - {response.text}",
+                    provider='mailgun'
+                )
+
+            result = response.json()
+
+            return EmailResponseDTO(
+                success=True,
+                message_id=result.get('id'),
+                provider='mailgun',
+                metadata={
+                    'message': result.get('message'),
+                }
+            )
+
+        except requests.RequestException as e:
+            raise EmailSendError(
+                f"Failed to send email via Mailgun: {str(e)}",
+                provider='mailgun',
+                original_error=e
+            )
+
+    def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
+        try:
+            responses = []
+
+            for msg in  bulk.messages:
+                response = self.send(msg)
+                responses.append(response)
+
+            return BulkEmailResponseDTO.from_responses(responses)
+
+        except Exception as e:
+            raise EmailSendError(
+                f"Failed to send bulk emails via Mailgun: {str(e)}",
+                provider='mailgun',
+                original_error=e
+            )
+
+    def _validate_config(self) -> None:
+        required = ['api_key', 'endpoint']
+        missing = [key for key in required if key not in self.config]
+        if missing:
+            raise ConfigurationError(
+                f"Missing required Mailgun configuration: {', '.join(missing)}"
+            )
+
+        self.endpoint = self.config['endpoint']
+
+    def _build_from_data(self, message: EmailMessageDto) -> Dict[str, Any]:
         data = {
-            "from": from_email,
-            "to": [to],
-            "subject": subject,
-            "html": body,
+            'from': message.from_email or self.config.get('from_email'),
+            'to': message.to,
+            'subject': message.subject,
         }
 
-        resp = requests.post(
-            self.endpoint,
-            auth=("api", self.api_key),
-            data=data,
-        )
-        resp.raise_for_status()
-        return resp.status_code == 200
+        if message.is_template_email():
+            data['template'] = message.template_id
+            data['recipient-variables'] = json.dumps(message.template_data or {})
+            data['t:variables'] = json.dumps(message.template_data or {})
+        else:
+            if message.html:
+                data['html'] = message.body
+            else:
+                data['text'] = message.body
+
+
+        if message.cc:
+            data['cc'] = message.cc
+        if message.bcc:
+            data['bcc'] = message.bcc
+
+        if message.reply_to:
+            data['h:Reply-To'] = message.reply_to
+
+        if message.headers:
+            for key, value in message.headers.items():
+                data[f'h:{key}'] = value
+
+        return data
+
+    def _build_files(self, attachments: List) -> List[tuple]:
+        files = []
+
+        for attachment in attachments:
+            if isinstance(attachment, Path):
+                files.append((
+                    'attachment',
+                    (attachment.name, open(attachment, 'rb'), 'application/octet-stream')
+                ))
+            elif isinstance(attachment, tuple):
+                filename, content, mimetype = attachment
+                if isinstance(content, str):
+                    content = content.encode()
+                files.append((
+                    'attachment',
+                    (filename, content, mimetype)
+                ))
+
+        return files
