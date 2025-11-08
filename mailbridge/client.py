@@ -3,6 +3,8 @@ from pathlib import Path
 
 from mailbridge.dto.email_message_dto import EmailMessageDto
 from mailbridge.dto.email_response_dto import EmailResponseDTO
+from mailbridge.dto.bulk_email_dto import BulkEmailDTO
+from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
 from mailbridge.exceptions import ProviderNotFoundError
 from mailbridge.providers.base_email_provider import BaseEmailProvider
 from mailbridge.providers.brevo_provider import BrevoProvider
@@ -105,6 +107,63 @@ class MailBridge:
         )
 
         return self.provider.send(message)
+
+    def send_bulk(
+            self,
+            messages: Union[List[EmailMessageDto], BulkEmailDTO],
+            default_from: str = None,
+            tags: List[str] = None
+    ) -> BulkEmailResponseDTO:
+        """
+        Send multiple emails at once.
+
+        Args:
+            messages: List of EmailMessageDto or BulkEmailDTO
+            default_from: Default sender email (optional)
+            tags: Common tags for all messages (optional)
+
+        Returns:
+            BulkEmailResponseDTO with results
+
+        Example:
+            messages = [
+                EmailMessageDto(to='user1@example.com', subject='Hi', body='Hello 1'),
+                EmailMessageDto(to='user2@example.com', subject='Hi', body='Hello 2'),
+            ]
+
+            result = mailer.send_bulk(messages)
+            print(f"Sent: {result.successful}/{result.total}")
+        """
+        # If already a BulkEmailDTO, use it directly
+        if isinstance(messages, BulkEmailDTO):
+            return self.provider.send_bulk(messages)
+
+        # Otherwise, create BulkEmailDTO from list
+        bulk = BulkEmailDTO(
+            messages=messages,
+            default_from=default_from,
+            tags=tags
+        )
+
+        return self.provider.send_bulk(bulk)
+
+    def supports_templates(self) -> bool:
+        """
+        Check if current provider supports template emails.
+
+        Returns:
+            True if templates are supported, False otherwise
+        """
+        return self.provider.supports_templates()
+
+    def supports_bulk_sending(self) -> bool:
+        """
+        Check if current provider has native bulk sending API.
+
+        Returns:
+            True if native bulk API exists, False otherwise
+        """
+        return self.provider.supports_bulk_sending()
 
     def __enter__(self):
         """Context manager entry."""
