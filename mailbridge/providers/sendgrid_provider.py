@@ -2,14 +2,18 @@ import base64
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import requests
-from mailbridge.providers.base_email_provider import TemplateCapableProvider, BulkCapableProvider
+from mailbridge.providers.base_email_provider import (
+    TemplateCapableProvider,
+    BulkCapableProvider,
+    AsyncCapableProvider
+)
 from mailbridge.dto.bulk_email_dto import BulkEmailDTO
 from mailbridge.dto.bulk_email_response_dto import BulkEmailResponseDTO
 from mailbridge.dto.email_message_dto import EmailMessageDto
 from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
+class SendGridProvider(TemplateCapableProvider, BulkCapableProvider, AsyncCapableProvider):
     def _validate_config(self) -> None:
         """Validate SendGrid configuration."""
         if 'api_key' not in self.config:
@@ -19,6 +23,8 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
             'endpoint',
             'https://api.sendgrid.com/v3/mail/send'
         )
+        self._http_client = None
+        self._async_client = None
 
     def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         """Send email via SendGrid API."""
@@ -38,6 +44,33 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
         except requests.RequestException as e:
             raise EmailSendError(
                 f"Failed to send email via SendGrid: {str(e)}",
+                provider='sendgrid',
+                original_error=e
+            )
+
+    async def send_async(self, message: EmailMessageDto) -> EmailResponseDTO:
+        """Send email via SendGrid API (async)."""
+        try:
+            import httpx
+
+            if self._async_client is None:
+                self._async_client = httpx.AsyncClient(timeout=30.0)
+
+            payload = self._build_payload(message)
+            response = await self._send_request_async(payload)
+
+            return EmailResponseDTO(
+                success=True,
+                message_id=response.headers.get('X-Message-Id'),
+                provider='sendgrid',
+                metadata={
+                    'status_code': response.status_code
+                }
+            )
+
+        except Exception as e:
+            raise EmailSendError(
+                f"Failed to send email via SendGrid (async): {str(e)}",
                 provider='sendgrid',
                 original_error=e
             )
@@ -139,6 +172,32 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
         if response.status_code not in (200, 202):
             raise EmailSendError(
                 f"SendGrid template error: {response.status_code} - {response.text}",
+                provider='sendgrid'
+            )
+
+        return response
+
+    async def _send_request_async(self, payload: Dict[str, Any]):
+        """Send HTTP request to SendGrid API (async)."""
+        import httpx
+
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(timeout=30.0)
+
+        headers = {
+            'Authorization': f'Bearer {self.config["api_key"]}',
+            'Content-Type': 'application/json'
+        }
+
+        response = await self._async_client.post(
+            self.endpoint,
+            json=payload,
+            headers=headers
+        )
+
+        if response.status_code not in (200, 202):
+            raise EmailSendError(
+                f"SendGrid API error: {response.status_code} - {response.text}",
                 provider='sendgrid'
             )
 
