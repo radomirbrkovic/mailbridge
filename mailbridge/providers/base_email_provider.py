@@ -61,20 +61,9 @@ class BaseEmailProvider(ABC):
         """Close any open connections. Override if needed."""
         pass
 
-class TemplateCapableProvider(BaseEmailProvider):
+class TemplateCapableProvider(BaseEmailProvider, ABC):
     def support_templates(self) -> bool:
         return True
-
-    @abstractmethod
-    def send_template(
-            self,
-            template_id: str,
-            to: List[str],
-            template_data: Dict[str, Any],
-            from_email: Optional[str] = None,
-            **kwargs
-    ) -> EmailResponseDTO:
-        pass
 
 class BulkCapableProvider(BaseEmailProvider):
     def support_bulk_sending(self) -> bool:
