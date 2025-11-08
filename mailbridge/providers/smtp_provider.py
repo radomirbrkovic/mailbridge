@@ -38,13 +38,6 @@ class SMTPProvider(BaseEmailProvider):
             if message.reply_to:
                 msg['Reply-To'] = message.reply_to
 
-            if message.cc:
-                msg['Cc'] = ', '.join(message.cc)
-            if message.bcc:
-                msg['Bcc'] = ', '.join(message.bcc)
-            if message.reply_to:
-                msg['Reply-To'] = message.reply_to
-
                 # Add custom headers
             if message.headers:
                 for key, value in message.headers.items():

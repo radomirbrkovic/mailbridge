@@ -43,10 +43,10 @@ class BaseEmailProvider(ABC):
                 ))
         return BulkEmailResponseDTO.from_responses(responses)
 
-    def support_templates(self) -> bool:
+    def supports_templates(self) -> bool:
         return False
 
-    def support_bulk_sending(self) -> bool:
+    def supports_bulk_sending(self) -> bool:
         return False
 
     def __enter__(self):
@@ -62,11 +62,11 @@ class BaseEmailProvider(ABC):
         pass
 
 class TemplateCapableProvider(BaseEmailProvider, ABC):
-    def support_templates(self) -> bool:
+    def supports_templates(self) -> bool:
         return True
 
 class BulkCapableProvider(BaseEmailProvider):
-    def support_bulk_sending(self) -> bool:
+    def supports_bulk_sending(self) -> bool:
         return True
 
     @abstractmethod

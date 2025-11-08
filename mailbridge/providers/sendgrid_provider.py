@@ -142,7 +142,7 @@ class SendGridProvider(TemplateCapableProvider, BulkCapableProvider):
                 provider='sendgrid'
             )
 
-        return requests
+        return response
 
 
     def _build_payload(self, message: EmailMessageDto) -> Dict[str, Any]:

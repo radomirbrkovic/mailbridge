@@ -52,9 +52,7 @@ class PostmarkProvider(TemplateCapableProvider, BulkCapableProvider):
             raise EmailSendError(
                 f"Failed to send email via Postmark: {str(e)}",
                 provider='postmark',
-
-
-                        original_error=e
+                original_error=e
             )
 
     def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
@@ -69,8 +67,8 @@ class PostmarkProvider(TemplateCapableProvider, BulkCapableProvider):
 
         except Exception as e:
             raise EmailSendError(
-                f"Failed to send bulk emails via Mailgun: {str(e)}",
-                provider='mailgun',
+                f"Failed to send bulk emails via Postmark: {str(e)}",
+                provider='postmark',
                 original_error=e
             )
 
