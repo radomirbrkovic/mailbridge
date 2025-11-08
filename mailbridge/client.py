@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, Union, List
 from pathlib import Path
 
 from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.exceptions import ProviderNotFoundError
 from mailbridge.providers.base_email_provider import BaseEmailProvider
 from mailbridge.providers.brevo_provider import BrevoProvider
@@ -44,8 +45,11 @@ class MailBridge:
             reply_to: Optional[str] = None,
             attachments: Optional[List[Union[Path, tuple]]] = None,
             html: bool = True,
-            headers: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+            headers: Optional[Dict[str, str]] = None,
+            template_id: Optional[str] = None,
+            template_data: Optional[Dict[str, Any]] = None,
+            tags: Optional[List[str]] = None
+    ) -> EmailResponseDTO:
         """
         Send an email.
 
@@ -60,6 +64,9 @@ class MailBridge:
             attachments: List of file paths or tuples (filename, content, mimetype)
             html: Whether body is HTML (default: True)
             headers: Custom headers (optional)
+            template_id: Template id (optional)
+            template_data: Template varibales (optional)
+            tags: Tags (optional)
 
         Returns:
             Dict with response data (success, message_id, etc.)
@@ -91,7 +98,10 @@ class MailBridge:
             reply_to=reply_to,
             attachments=attachments,
             html=html,
-            headers=headers
+            headers=headers,
+            template_id=template_id,
+            template_data=template_data,
+            tags=tags
         )
 
         return self.provider.send(message)
