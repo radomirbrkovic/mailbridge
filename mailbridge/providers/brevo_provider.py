@@ -9,32 +9,11 @@ from mailbridge.dto.email_message_dto import EmailMessageDto
 from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
-class BrevoProvider(TemplateCapableProvider):
+class BrevoProvider(TemplateCapableProvider, BulkCapableProvider):
     def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         try:
             payload = self._build_payload(message)
-
-            headers = {
-                'api-key': self.config['api_key'],
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-
-            response = requests.post(
-                self.endpoint,
-                json=payload,
-                headers=headers,
-                timeout=30
-            )
-
-            if response.status_code not in (200, 201):
-                error_data = response.json()
-                raise EmailSendError(
-                    f"Brevo API error: {error_data.get('code')} - "
-                    f"{error_data.get('message')}",
-                    provider='brevo'
-                )
-
+            response = self._send_request(payload)
             result = response.json()
 
             return EmailResponseDTO(
@@ -53,6 +32,46 @@ class BrevoProvider(TemplateCapableProvider):
                 original_error=e
             )
 
+    def send_bulk(self, bulk: BulkEmailDTO) -> BulkEmailResponseDTO:
+        try:
+            payload = {
+                'sender': {
+                    'email': bulk.default_from or self.config.get('from_email')
+                },
+                'subject': bulk.messages[0].subject,
+                'messageVersions': []
+            }
+
+            for message in bulk.messages:
+                message_payload = self._build_payload(message, True)
+                message_payload['to'] = [{'email': email} for email in message.to]
+                payload['messageVersions'].append(message_payload)
+
+            response = self._send_request(payload)
+            result = response.json()
+
+            email_responses = []
+            for message_id in result.get('messageId'):
+                email_responses.append(EmailResponseDTO(
+                    success=True,
+                    message_id=message_id,
+                    provider='brevo',
+                    metadata={
+                        'status_code': response.status_code
+                    }
+                ))
+
+            return BulkEmailResponseDTO.from_responses(email_responses)
+
+        except requests.RequestException as e:
+            raise EmailSendError(
+                f"Failed to send email via Brevo: {str(e)}",
+                provider='brevo',
+                original_error=e
+            )
+
+
+
     def _validate_config(self) -> None:
         """Validate Brevo configuration."""
         if 'api_key' not in self.config:
@@ -65,15 +84,43 @@ class BrevoProvider(TemplateCapableProvider):
             'https://api.brevo.com/v3/smtp/email'
         )
 
-    def _build_payload(self, message: EmailMessageDto) -> Dict[str, Any]:
-
-        payload = {
-            'sender': {
-                'email': message.from_email or self.config.get('from_email')
-            },
-            'to': [{'email': email} for email in message.to],
-            'subject': message.subject,
+    def _send_request(self, payload: Dict[str, Any]):
+        headers = {
+            'api-key': self.config['api_key'],
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         }
+
+        response = requests.post(
+            self.endpoint,
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+
+        if response.status_code not in (200, 201):
+            error_data = response.json()
+            raise EmailSendError(
+                f"Brevo API error: {error_data.get('code')} - "
+                f"{error_data.get('message')}",
+                provider='brevo'
+            )
+
+        return response
+
+
+    def _build_payload(self, message: EmailMessageDto, is_bulk: bool = False) -> Dict[str, Any]:
+
+        if not is_bulk:
+            payload = {
+                'sender': {
+                    'email': message.from_email or self.config.get('from_email')
+                },
+                'to': [{'email': email} for email in message.to],
+                'subject': message.subject,
+            }
+        else:
+            payload = {}
 
         if message.is_template_email():
             payload['templateId'] = message.template_id

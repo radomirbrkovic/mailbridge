@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from pyexpat.errors import messages
 from typing import List, Optional
 
 from mailbridge.dto.email_message_dto import EmailMessageDto
