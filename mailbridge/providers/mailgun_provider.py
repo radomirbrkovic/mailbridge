@@ -68,7 +68,6 @@ class MailgunProvider(TemplateCapableProvider, BulkCapableProvider):
                 original_error=e
             )
 
-
     def _validate_config(self) -> None:
         required = ['api_key', 'endpoint']
         missing = [key for key in required if key not in self.config]
