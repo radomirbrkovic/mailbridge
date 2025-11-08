@@ -8,6 +8,7 @@ from email import encoders
 from pathlib import Path
 from typing import Dict, Any
 from mailbridge.providers.base_email_provider import BaseEmailProvider
+from mailbridge.dto.email_response_dto import EmailResponseDTO
 from mailbridge.dto.email_message_dto import EmailMessageDto
 from mailbridge.exceptions import ConfigurationError, EmailSendError
 
@@ -23,7 +24,7 @@ class SMTPProvider(BaseEmailProvider):
                 f"Missing required SMTP configuration: {', '.join(missing)}"
             )
 
-    def send(self, message: EmailMessageDto) -> Dict[str, Any]:
+    def send(self, message: EmailMessageDto) -> EmailResponseDTO:
         try:
             msg = MIMEMultipart('alternative')
             msg['Subject'] = message.subject
@@ -67,11 +68,11 @@ class SMTPProvider(BaseEmailProvider):
             with self._get_smtp_connection() as server:
                 server.send_message(msg, to_addrs=recipients)
 
-            return {
-                'success': True,
-                'message_id': msg['Message-ID'],
-                'provider': 'smtp'
-            }
+            return EmailResponseDTO(
+                success=True,
+                message_id=msg['Message-ID'],
+                provider='smtp'
+            )
 
 
         except Exception as e:
