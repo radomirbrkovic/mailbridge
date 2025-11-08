@@ -1,0 +1,423 @@
+"""
+Unit tests for SMTP provider.
+
+Tests cover:
+- Configuration validation
+- Regular email sending
+- Plain text vs HTML
+- CC/BCC/Reply-To
+- Attachments
+- TLS vs SSL connections
+- Error handling
+
+Run with: pytest tests/test_smtp_provider.py -v
+"""
+
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
+import smtplib
+
+from mailbridge.providers.smtp_provider import SMTPProvider
+from mailbridge.dto.email_message_dto import EmailMessageDto
+from mailbridge.dto.email_response_dto import EmailResponseDTO
+from mailbridge.exceptions import ConfigurationError, EmailSendError
+
+
+# =============================================================================
+# FIXTURES
+# =============================================================================
+
+@pytest.fixture
+def smtp_config():
+    """SMTP configuration fixture."""
+    return {
+        'host': 'smtp.example.com',
+        'port': 587,
+        'username': 'user@example.com',
+        'password': 'password123',
+        'from_email': 'sender@example.com',
+        'use_tls': True,
+        'use_ssl': False
+    }
+
+
+@pytest.fixture
+def smtp_provider(smtp_config):
+    """SMTP provider fixture."""
+    return SMTPProvider(**smtp_config)
+
+
+@pytest.fixture
+def simple_message():
+    """Simple email message fixture."""
+    return EmailMessageDto(
+        to='recipient@example.com',
+        subject='Test Email',
+        body='<h1>Hello World</h1>',
+        html=True
+    )
+
+
+@pytest.fixture
+def mock_smtp_server():
+    """Mock SMTP server."""
+    mock_server = MagicMock()
+    mock_server.__enter__ = Mock(return_value=mock_server)
+    mock_server.__exit__ = Mock(return_value=False)
+    return mock_server
+
+
+# =============================================================================
+# CONFIGURATION TESTS
+# =============================================================================
+
+class TestSMTPConfiguration:
+    """Test SMTP provider configuration."""
+
+    def test_valid_configuration(self, smtp_config):
+        """Test provider initializes with valid config."""
+        provider = SMTPProvider(**smtp_config)
+
+        assert provider.config['host'] == 'smtp.example.com'
+        assert provider.config['port'] == 587
+        assert provider.config['username'] == 'user@example.com'
+        assert provider.config['use_tls'] is True
+
+    def test_missing_required_config(self):
+        """Test provider raises error when required config is missing."""
+        with pytest.raises(ConfigurationError) as exc_info:
+            SMTPProvider(host='smtp.example.com', port=587)
+
+        assert 'username' in str(exc_info.value)
+        assert 'password' in str(exc_info.value)
+
+    def test_supports_templates(self, smtp_provider):
+        """Test SMTP provider does NOT support templates."""
+        assert smtp_provider.supports_templates() is False
+
+    def test_supports_bulk_sending(self, smtp_provider):
+        """Test SMTP provider does NOT have native bulk."""
+        assert smtp_provider.supports_bulk_sending() is False
+
+
+# =============================================================================
+# REGULAR EMAIL TESTS
+# =============================================================================
+
+class TestSMTPRegularEmail:
+    """Test regular email sending."""
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_simple_email(self, mock_smtp_class, smtp_provider, simple_message):
+        """Test sending a simple email via SMTP."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        response = smtp_provider.send(simple_message)
+
+        # Check response
+        assert response.success is True
+        assert response.provider == 'smtp'
+
+        # Check SMTP connection
+        mock_smtp_class.assert_called_once_with('smtp.example.com', 587)
+        # Check message was sent
+        mock_server.send_message.assert_called_once()
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP_SSL')
+    def test_send_with_ssl(self, mock_smtp_ssl_class, smtp_config):
+        """Test sending email with SSL connection."""
+        smtp_config['use_ssl'] = True
+        smtp_config['use_tls'] = False
+        provider = SMTPProvider(**smtp_config)
+
+        mock_server = MagicMock()
+        mock_smtp_ssl_class.return_value.__enter__.return_value = mock_server
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='SSL Test',
+            body='Body'
+        )
+
+        response = provider.send(message)
+
+        assert response.success is True
+
+        # Should use SMTP_SSL
+        mock_smtp_ssl_class.assert_called_once()
+
+        # Should NOT call starttls (already SSL)
+        mock_server.starttls.assert_not_called()
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_plain_text(self, mock_smtp_class, smtp_provider):
+        """Test sending plain text email."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='Plain Text',
+            body='Plain text content',
+            html=False
+        )
+
+        response = smtp_provider.send(message)
+
+        assert response.success is True
+
+        # Check message was sent
+        call_args = mock_server.send_message.call_args
+        sent_message = call_args[0][0]
+
+        # Check it's plain text (would need to parse MIME to verify fully)
+        assert sent_message['Subject'] == 'Plain Text'
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_with_cc_bcc(self, mock_smtp_class, smtp_provider):
+        """Test sending email with CC and BCC."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='Test',
+            body='Body',
+            cc=['cc@example.com'],
+            bcc=['bcc@example.com']
+        )
+
+        response = smtp_provider.send(message)
+
+        assert response.success is True
+
+        # Check recipients include to, cc, bcc
+        call_kwargs = mock_server.send_message.call_args[1]
+        recipients = call_kwargs['to_addrs']
+        assert 'recipient@example.com' in recipients
+        assert 'cc@example.com' in recipients
+        assert 'bcc@example.com' in recipients
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_with_reply_to(self, mock_smtp_class, smtp_provider):
+        """Test sending email with Reply-To."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='Test',
+            body='Body',
+            reply_to='reply@example.com'
+        )
+
+        response = smtp_provider.send(message)
+
+        assert response.success is True
+
+        sent_message = mock_server.send_message.call_args[0][0]
+        assert sent_message['Reply-To'] == 'reply@example.com'
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_with_custom_headers(self, mock_smtp_class, smtp_provider):
+        """Test sending email with custom headers."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='Test',
+            body='Body',
+            headers={'X-Custom-Header': 'custom-value', 'X-Priority': '1'}
+        )
+
+        response = smtp_provider.send(message)
+
+        assert response.success is True
+
+        sent_message = mock_server.send_message.call_args[0][0]
+        assert sent_message['X-Custom-Header'] == 'custom-value'
+        assert sent_message['X-Priority'] == '1'
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_with_attachments(self, mock_smtp_class, smtp_provider, tmp_path):
+        """Test sending email with file attachment."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("Test content")
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='With Attachment',
+            body='See attached',
+            attachments=[test_file]
+        )
+
+        response = smtp_provider.send(message)
+
+        assert response.success is True
+
+        # Message was sent (attachment is in MIME message)
+        mock_server.send_message.assert_called_once()
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_with_tuple_attachment(self, mock_smtp_class, smtp_provider):
+        """Test sending email with tuple attachment."""
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        attachment = ('report.csv', b'col1,col2\nval1,val2', 'text/csv')
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='CSV Report',
+            body='Report attached',
+            attachments=[attachment]
+        )
+
+        response = smtp_provider.send(message)
+
+        assert response.success is True
+        mock_server.send_message.assert_called_once()
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_send_connection_error(self, mock_smtp_class, smtp_provider, simple_message):
+        """Test handling of SMTP connection error."""
+        mock_smtp_class.side_effect = smtplib.SMTPConnectError(421, b'Service not available')
+
+        with pytest.raises(EmailSendError) as exc_info:
+            smtp_provider.send(simple_message)
+
+        assert 'Failed to send email via SMTP' in str(exc_info.value)
+
+
+# =============================================================================
+# CONNECTION TESTS
+# =============================================================================
+
+class TestSMTPConnection:
+    """Test SMTP connection handling."""
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_get_smtp_connection_tls(self, mock_smtp_class, smtp_config):
+        """Test SMTP connection with TLS."""
+        smtp_config['use_tls'] = True
+        smtp_config['use_ssl'] = False
+        provider = SMTPProvider(**smtp_config)
+
+        mock_server = MagicMock()
+        mock_smtp_class.return_value = mock_server
+
+        connection = provider._get_smtp_connection()
+
+        # Should create SMTP (not SMTP_SSL)
+        mock_smtp_class.assert_called_once_with('smtp.example.com', 587)
+
+        # Should call STARTTLS
+        mock_server.starttls.assert_called_once()
+
+        # Should login
+        mock_server.login.assert_called_once_with('user@example.com', 'password123')
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP_SSL')
+    def test_get_smtp_connection_ssl(self, mock_smtp_ssl_class, smtp_config):
+        """Test SMTP connection with SSL."""
+        smtp_config['use_ssl'] = True
+        smtp_config['use_tls'] = False
+        provider = SMTPProvider(**smtp_config)
+
+        mock_server = MagicMock()
+        mock_smtp_ssl_class.return_value = mock_server
+
+        connection = provider._get_smtp_connection()
+
+        # Should create SMTP_SSL
+        mock_smtp_ssl_class.assert_called_once()
+
+        # Should NOT call starttls
+        mock_server.starttls.assert_not_called()
+
+        # Should login
+        mock_server.login.assert_called_once()
+
+    @patch('mailbridge.providers.smtp_provider.smtplib.SMTP')
+    def test_default_from_email(self, mock_smtp_class, smtp_config):
+        """Test using default from_email when not specified in message."""
+        provider = SMTPProvider(**smtp_config)
+
+        mock_server = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_server
+
+        message = EmailMessageDto(
+            to='recipient@example.com',
+            subject='Test',
+            body='Body',
+            from_email=None  # Not specified
+        )
+
+        response = provider.send(message)
+
+        assert response.success is True
+
+        sent_message = mock_server.send_message.call_args[0][0]
+        # Should use from_email from config
+        assert sent_message['From'] == 'sender@example.com'
+
+
+# =============================================================================
+# HELPER METHODS TESTS
+# =============================================================================
+
+class TestSMTPHelpers:
+    """Test helper methods."""
+
+    def test_attach_file(self, smtp_provider, tmp_path):
+        """Test _attach_file with Path object."""
+        from email.mime.multipart import MIMEMultipart
+
+        test_file = tmp_path / "document.txt"
+        test_file.write_text("Content")
+
+        msg = MIMEMultipart()
+        smtp_provider._attach_file(msg, test_file)
+
+        # Check attachment was added
+        assert len(msg.get_payload()) == 1
+
+    def test_attach_tuple(self, smtp_provider):
+        """Test _attach_file with tuple."""
+        from email.mime.multipart import MIMEMultipart
+
+        attachment = ('file.csv', b'data', 'text/csv')
+
+        msg = MIMEMultipart()
+        smtp_provider._attach_file(msg, attachment)
+
+        # Check attachment was added
+        assert len(msg.get_payload()) == 1
+
+
+# =============================================================================
+# CONTEXT MANAGER TESTS
+# =============================================================================
+
+class TestSMTPContextManager:
+    """Test context manager support."""
+
+    def test_context_manager(self, smtp_config):
+        """Test using provider as context manager."""
+        with SMTPProvider(**smtp_config) as provider:
+            assert provider is not None
+            assert isinstance(provider, SMTPProvider)
+
+
+# =============================================================================
+# RUN TESTS
+# =============================================================================
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v', '--tb=short'])
