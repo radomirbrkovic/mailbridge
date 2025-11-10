@@ -10,7 +10,7 @@ It supports **SMTP**, **SendGrid**, **Mailgun**, **Amazon SES**, **Postmark**, a
 ## ✨ Features
 
 - 🎨 **Template Support** - Use dynamic templates with all major providers
-- 🎨 **Attachment Support** - Add file attachment in email message
+- 📎 **Attachment Support** - Add file attachment in email message
 - 📦 **Bulk Sending** - Send thousands of emails efficiently with native API optimization
 - 🔧 **Unified Interface** - Same code works with any provider
 - ✅ **Fully Tested** - 156 unit tests, 96% coverage
