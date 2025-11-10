@@ -4,7 +4,7 @@ SendGrid Provider - Basic Email Example
 This example shows how to send basic emails using SendGrid.
 """
 
-from mailbridge.client import MailBridge
+from mailbridge import MailBridge
 
 # Initialize SendGrid provider
 mailer = MailBridge(
