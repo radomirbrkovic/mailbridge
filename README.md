@@ -1,5 +1,11 @@
 # MailBridge 📧
 
+# MailBridge  
+[![CI](https://github.com/radomirbrkovic/mailbridge/actions/workflows/tests.yml/badge.svg)](https://github.com/radomirbrkovic/mailbridge/actions/workflows/tests.yml)
+[![PyPI version](https://img.shields.io/pypi/v/mailbridge.svg)](https://pypi.org/project/mailbridge/)
+[![codecov](https://codecov.io/gh/radomirbrkovic/mailbridge/branch/main/graph/badge.svg)](https://codecov.io/gh/radomirbrkovic/mailbridge)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Unified Python email library with multi-provider support**
 
 **MailBridge** is a flexible Python library for sending emails, allowing you to use multiple providers through a single, simple interface.
