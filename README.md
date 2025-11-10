@@ -132,7 +132,7 @@ mailer = MailBridge(
 
 - [Get API Key](https://app.sendgrid.com/settings/api_keys)
 - [Documentation](https://docs.sendgrid.com/)
-- [Examples](examples/sendgrid_basic.py)
+- [Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/sengrid_basic.py)
 
 ---
 
@@ -157,7 +157,7 @@ mailer = MailBridge(
 
 - [SES Console](https://console.aws.amazon.com/ses/)
 - [Documentation](https://docs.aws.amazon.com/ses/)
-- [Examples](examples/ses_basic.py)
+- [Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/ses_basic.py)
 
 **Note:** Email addresses must be verified in sandbox mode. Request production access to send to any email.
 
@@ -184,7 +184,7 @@ response = mailer.send(
 
 - [Get Token](https://account.postmarkapp.com/servers)
 - [Documentation](https://postmarkapp.com/developer)
-- [Examples](examples/postmark_basic.py)
+- [Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/postmark_basic.py)
 
 ---
 
@@ -202,7 +202,7 @@ mailer = MailBridge(
 - [Get API Key](https://app.mailgun.com/settings/api_security)
 - [Documentation](https://documentation.mailgun.com/)
 
-**Note:** Uses same API as SendGrid. See [SendGrid examples](examples/sendgrid_basic.py) for usage patterns.
+**Note:** Uses same API as SendGrid. See [SendGrid examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/sendgrid_basic.py) for usage patterns.
 
 ---
 
@@ -226,7 +226,7 @@ mailer.send(
 - [Get API Key](https://app.brevo.com/settings/keys/api)
 - [Documentation](https://developers.brevo.com/)
 
-**Note:** Similar to SendGrid/Postmark. Template IDs are integers. See [SendGrid examples](examples/sendgrid_basic.py) for usage patterns.
+**Note:** Similar to SendGrid/Postmark. Template IDs are integers. See [SendGrid examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/sendgrid_basic.py) for usage patterns.
 
 ---
 
@@ -267,7 +267,7 @@ mailer = MailBridge(
 )
 ```
 
-- [Examples](examples/smtp_basic.py)
+- [Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/smtp_basic.py)
 
 **Gmail:** Use [App Password](https://support.google.com/accounts/answer/185833) (requires 2FA)
 
@@ -425,13 +425,13 @@ print(f"Sent {result.successful} in {result.total_time:.2f}s")
 
 ## 📚 Documentation & Examples
 
-- **[Examples Directory](examples/)** - Complete examples for all providers
-  - [SendGrid Examples](examples/sendgrid_basic.py) - Basic, template, bulk
-  - [SES Examples](examples/ses_basic.py) - AWS setup, templates, bulk
-  - [Postmark Examples](examples/postmark_basic.py) - Tracking features
-  - [SMTP Examples](examples/smtp_basic.py) - Gmail, Outlook, custom
-- **[Test Suite](tests/)** - 156 unit tests, 96% coverage
-- **[Changelog](CHANGELOG.md)** - Version history
+- **[Examples Directory](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/)** - Complete examples for all providers
+  - [SendGrid Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/sendgrid_basic.py) - Basic, template, bulk
+  - [SES Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/ses_basic.py) - AWS setup, templates, bulk
+  - [Postmark Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/postmark_basic.py) - Tracking features
+  - [SMTP Examples](https://github.com/radomirbrkovic/mailbridge/blob/main/examples/smtp_basic.py) - Gmail, Outlook, custom
+- **[Test Suite](https://github.com/radomirbrkovic/mailbridge/blob/main/tests/)** - 156 unit tests, 96% coverage
+- **[Changelog](https://github.com/radomirbrkovic/mailbridge/blob/main/CHANGELOG.md)** - Version history
 
 ---
 
