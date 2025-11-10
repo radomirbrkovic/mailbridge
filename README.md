@@ -4,6 +4,7 @@
 
 **MailBridge** is a flexible Python library for sending emails, allowing you to use multiple providers through a single, simple interface.
 It supports **SMTP**, **SendGrid**, **Mailgun**, **Amazon SES**, **Postmark**, and **Brevo**.
+
 ---
 
 ## ✨ Features
