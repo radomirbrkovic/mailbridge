@@ -192,7 +192,3 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
-
-[project.urls]
-Homepage = "https://github.com/radomirbrkovic/mailbridge"
-Changelog = "https://github.com/radomirbrkovic/mailbridge/blob/main/CHANGELOG.md"
